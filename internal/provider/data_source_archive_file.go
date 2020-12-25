@@ -26,6 +26,12 @@ func dataSourceFile() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
+			"normalize_mode": {
+				Type:     schema.TypeString,
+				Optional: true,
+				ForceNew: true,
+				Default:  false,
+			},
 			"source": {
 				Type:     schema.TypeSet,
 				Optional: true,
@@ -165,6 +171,7 @@ func expandStringList(configured []interface{}) []string {
 func archive(d *schema.ResourceData) error {
 	archiveType := d.Get("type").(string)
 	outputPath := d.Get("output_path").(string)
+	normalizeMode := d.Get("normalize_mode").(string)
 
 	archiver := getArchiver(archiveType, outputPath)
 	if archiver == nil {
@@ -175,21 +182,21 @@ func archive(d *schema.ResourceData) error {
 		if excludes, ok := d.GetOk("excludes"); ok {
 			excludeList := expandStringList(excludes.(*schema.Set).List())
 
-			if err := archiver.ArchiveDir(dir.(string), excludeList); err != nil {
+			if err := archiver.ArchiveDir(dir.(string), excludeList, normalizeMode); err != nil {
 				return fmt.Errorf("error archiving directory: %s", err)
 			}
 		} else {
-			if err := archiver.ArchiveDir(dir.(string), []string{""}); err != nil {
+			if err := archiver.ArchiveDir(dir.(string), []string{""}, normalizeMode); err != nil {
 				return fmt.Errorf("error archiving directory: %s", err)
 			}
 		}
 	} else if file, ok := d.GetOk("source_file"); ok {
-		if err := archiver.ArchiveFile(file.(string)); err != nil {
+		if err := archiver.ArchiveFile(file.(string), normalizeMode); err != nil {
 			return fmt.Errorf("error archiving file: %s", err)
 		}
 	} else if filename, ok := d.GetOk("source_content_filename"); ok {
 		content := d.Get("source_content").(string)
-		if err := archiver.ArchiveContent([]byte(content), filename.(string)); err != nil {
+		if err := archiver.ArchiveContent([]byte(content), filename.(string), normalizeMode); err != nil {
 			return fmt.Errorf("error archiving content: %s", err)
 		}
 	} else if v, ok := d.GetOk("source"); ok {
@@ -199,7 +206,7 @@ func archive(d *schema.ResourceData) error {
 			src := v.(map[string]interface{})
 			content[src["filename"].(string)] = []byte(src["content"].(string))
 		}
-		if err := archiver.ArchiveMultiple(content); err != nil {
+		if err := archiver.ArchiveMultiple(content, normalizeMode); err != nil {
 			return fmt.Errorf("error archiving content: %s", err)
 		}
 	} else {
